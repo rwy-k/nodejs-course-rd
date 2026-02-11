@@ -1,0 +1,91 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type ProductType {
+  id: ID!
+  name: String!
+  description: String
+  price: Float!
+  stock: Int!
+  category: String
+  isAvailable: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+type OrderItemType {
+  id: ID!
+  quantity: Int!
+  price: Float!
+  product: ProductType
+}
+
+type UserType {
+  id: ID!
+  firstName: String!
+  lastName: String!
+  email: String!
+  isActive: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type OrderType {
+  id: ID!
+  status: OrderStatus!
+  totalAmount: Float!
+  shippingAddress: String
+  items: [OrderItemType!]!
+  user: UserType
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type OrdersConnection {
+  nodes: [OrderType!]!
+  totalCount: Int!
+  pageInfo: PageInfo!
+}
+
+type Query {
+  hello: String!
+  products: [ProductType!]!
+  product(id: ID!): ProductType!
+  availableProducts: [ProductType!]!
+  orders(filter: OrdersFilterInput, pagination: OrdersPaginationInput): OrdersConnection!
+  order(id: ID!): OrderType!
+  ordersByUser(userId: ID!): [OrderType!]!
+}
+
+input OrdersFilterInput {
+  status: OrderStatus
+  dateFrom: DateTime
+  dateTo: DateTime
+}
+
+input OrdersPaginationInput {
+  first: Int = 20
+  after: String
+  before: String
+}
