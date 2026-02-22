@@ -7,43 +7,61 @@ import {
 
 export class AddFileIdRelations1707800000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.addColumn(
-      'users',
-      new TableColumn({
-        name: 'avatarFileId',
-        type: 'int',
-        isNullable: true,
-      }),
-    );
+    const hasAvatarFileId = await queryRunner.hasColumn('users', 'avatarFileId');
+    if (!hasAvatarFileId) {
+      await queryRunner.addColumn(
+        'users',
+        new TableColumn({
+          name: 'avatarFileId',
+          type: 'int',
+          isNullable: true,
+        }),
+      );
+    }
 
-    await queryRunner.addColumn(
-      'products',
-      new TableColumn({
-        name: 'imageFileId',
-        type: 'int',
-        isNullable: true,
-      }),
-    );
+    const hasImageFileId = await queryRunner.hasColumn('products', 'imageFileId');
+    if (!hasImageFileId) {
+      await queryRunner.addColumn(
+        'products',
+        new TableColumn({
+          name: 'imageFileId',
+          type: 'int',
+          isNullable: true,
+        }),
+      );
+    }
 
-    await queryRunner.createForeignKey(
-      'users',
-      new TableForeignKey({
-        columnNames: ['avatarFileId'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'file_records',
-        onDelete: 'SET NULL',
-      }),
+    const usersTable = await queryRunner.getTable('users');
+    const hasUsersFk = usersTable?.foreignKeys.some(
+      (fk) => fk.columnNames.includes('avatarFileId'),
     );
+    if (!hasUsersFk) {
+      await queryRunner.createForeignKey(
+        'users',
+        new TableForeignKey({
+          columnNames: ['avatarFileId'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'file_records',
+          onDelete: 'SET NULL',
+        }),
+      );
+    }
 
-    await queryRunner.createForeignKey(
-      'products',
-      new TableForeignKey({
-        columnNames: ['imageFileId'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'file_records',
-        onDelete: 'SET NULL',
-      }),
+    const productsTable = await queryRunner.getTable('products');
+    const hasProductsFk = productsTable?.foreignKeys.some(
+      (fk) => fk.columnNames.includes('imageFileId'),
     );
+    if (!hasProductsFk) {
+      await queryRunner.createForeignKey(
+        'products',
+        new TableForeignKey({
+          columnNames: ['imageFileId'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'file_records',
+          onDelete: 'SET NULL',
+        }),
+      );
+    }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
@@ -68,7 +86,14 @@ export class AddFileIdRelations1707800000000 implements MigrationInterface {
       }
     }
 
-    await queryRunner.dropColumn('users', 'avatarFileId');
-    await queryRunner.dropColumn('products', 'imageFileId');
+    const hasAvatarFileId = await queryRunner.hasColumn('users', 'avatarFileId');
+    if (hasAvatarFileId) {
+      await queryRunner.dropColumn('users', 'avatarFileId');
+    }
+
+    const hasImageFileId = await queryRunner.hasColumn('products', 'imageFileId');
+    if (hasImageFileId) {
+      await queryRunner.dropColumn('products', 'imageFileId');
+    }
   }
 }

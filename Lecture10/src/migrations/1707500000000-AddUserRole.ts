@@ -1,23 +1,32 @@
-import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddUserRole1707500000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
+    const hasColumn = await queryRunner.hasColumn('users', 'role');
+    if (hasColumn) {
+      return;
+    }
+
     await queryRunner.query(`
-      CREATE TYPE "user_role_enum" AS ENUM ('user', 'admin')
+      DO $$ BEGIN
+        CREATE TYPE "user_role_enum" AS ENUM ('user', 'admin');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
     `);
 
-    await queryRunner.addColumn(
-      'users',
-      new TableColumn({
-        name: 'role',
-        type: 'user_role_enum',
-        default: "'user'",
-      }),
-    );
+    await queryRunner.query(`
+      ALTER TABLE "users" 
+      ADD COLUMN IF NOT EXISTS "role" "user_role_enum" DEFAULT 'user'
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropColumn('users', 'role');
-    await queryRunner.query(`DROP TYPE "user_role_enum"`);
+    const hasColumn = await queryRunner.hasColumn('users', 'role');
+    if (!hasColumn) {
+      return;
+    }
+    await queryRunner.query(`ALTER TABLE "users" DROP COLUMN IF EXISTS "role"`);
+    await queryRunner.query(`DROP TYPE IF EXISTS "user_role_enum"`);
   }
 }

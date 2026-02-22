@@ -9,15 +9,27 @@ import {
 export class CreateFileRecords1707700000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
-      CREATE TYPE "file_status_enum" AS ENUM ('pending', 'ready')
+      DO $$ BEGIN
+        CREATE TYPE "file_status_enum" AS ENUM ('pending', 'ready');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
     `);
 
     await queryRunner.query(`
-      CREATE TYPE "file_visibility_enum" AS ENUM ('private', 'public')
+      DO $$ BEGIN
+        CREATE TYPE "file_visibility_enum" AS ENUM ('private', 'public');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
     `);
 
     await queryRunner.query(`
-      CREATE TYPE "file_entity_type_enum" AS ENUM ('user', 'product')
+      DO $$ BEGIN
+        CREATE TYPE "file_entity_type_enum" AS ENUM ('user', 'product');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
     `);
 
     await queryRunner.createTable(
@@ -138,10 +150,10 @@ export class CreateFileRecords1707700000000 implements MigrationInterface {
       }
     }
 
-    await queryRunner.dropTable('file_records');
+    await queryRunner.dropTable('file_records', true);
 
-    await queryRunner.query(`DROP TYPE "file_entity_type_enum"`);
-    await queryRunner.query(`DROP TYPE "file_visibility_enum"`);
-    await queryRunner.query(`DROP TYPE "file_status_enum"`);
+    await queryRunner.query(`DROP TYPE IF EXISTS "file_entity_type_enum"`);
+    await queryRunner.query(`DROP TYPE IF EXISTS "file_visibility_enum"`);
+    await queryRunner.query(`DROP TYPE IF EXISTS "file_status_enum"`);
   }
 }
