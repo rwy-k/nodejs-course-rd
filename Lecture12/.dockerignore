@@ -1,0 +1,56 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# Environment files (secrets!)
+.env
+.env.*
+!.env.example
+
+# Docker secrets directory
+secrets/
+
+# IDE and editor
+.idea
+.vscode
+*.swp
+*.swo
+.DS_Store
+
+# Test files
+test
+**/*.spec.ts
+**/*.test.ts
+coverage
+.nyc_output
+
+# Dev configs
+.prettierrc
+eslint.config.mjs
+jest.config.*
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+compose*.yml
+.dockerignore
+
+# Documentation
+README.md
+*.md
+!package.json
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Misc
+tmp
+temp
