@@ -1,0 +1,22 @@
+name: Deploy Production (standalone)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Production deploy placeholder (no rebuild)
+        run: |
+          echo "Canonical production deploy is in build-push-images.yml (job: Deploy Production)."
+          echo "It uses images from release-manifest.json only (no rebuild)."
+          echo "For manual re-deploy, trigger that workflow or download release-manifest artifact from a previous run."

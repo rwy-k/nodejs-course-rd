@@ -1,0 +1,118 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [develop, main]
+
+defaults:
+  run:
+    working-directory: Lecture17
+
+env:
+  NODE_ENV: test
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: Lecture17/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: Lecture17/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm run test
+
+  docker-build:
+    name: Docker build validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: Lecture17/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app (for Docker context)
+        run: npm run build
+
+      - name: Build orders-api image
+        run: docker build -t lecture17-orders-api:pr --target prod .
+
+      - name: Build payments image
+        run: docker build -t lecture17-payments:pr -f apps/payments-service/Dockerfile --target prod .
+
+  migration-check:
+    name: Migration / schema check
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: shop_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: Lecture17/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Run migrations
+        run: npm run migration:run:prod
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: shop_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres

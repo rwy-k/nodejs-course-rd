@@ -1,0 +1,44 @@
+name: Deploy Production
+
+on:
+  workflow_run:
+    workflows: ["Build and Stage"]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-production:
+    name: Deploy Production
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    environment: production
+    steps:
+      - name: Download release-manifest from Build and Stage run
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          run_id: ${{ github.event.workflow_run.id }}
+          name: release-manifest
+          path: .
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log deploy context (commit SHA, image tag/digest, target environment)
+        run: |
+          echo "=============================================="
+          echo "PRODUCTION DEPLOY"
+          echo "=============================================="
+          echo "target_environment: production"
+          echo "commit_sha: $(jq -r '.commit' release-manifest.json)"
+          echo "image_tag: $(jq -r '.tag' release-manifest.json)"
+          echo "----------------------------------------------"
+          echo "services:"
+          jq -r '.services | to_entries[] | "  \(.key):\n    image: \(.value.image)\n    digest: \(.value.digest)"' release-manifest.json
+          echo "=============================================="
+
+      - name: Production deploy (use images from manifest — no rebuild)
+        run: |
+          echo "Deploying to production using release-manifest.json (same artifact as stage pipeline)."
+          echo "Pull images by tag/digest above and deploy (kubectl, ECS, etc.)."

@@ -1,0 +1,133 @@
+name: Build and Push Docker Images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-push:
+    name: Build, push, manifest
+    runs-on: ubuntu-latest
+    outputs:
+      manifest: ${{ steps.manifest.outputs.path }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image tag (immutable)
+        id: tag
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "tag=sha-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "full_sha=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Set image prefix (GHCR lowercase)
+        id: prefix
+        run: |
+          PREFIG=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "value=ghcr.io/${PREFIG}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push orders-api
+        id: push-orders
+        uses: docker/build-push-action@v6
+        with:
+          context: Lecture17
+          file: Lecture17/Dockerfile
+          target: prod
+          push: true
+          tags: |
+            ${{ steps.prefix.outputs.value }}/orders-api:${{ steps.tag.outputs.tag }}
+            ${{ steps.prefix.outputs.value }}/orders-api:${{ steps.tag.outputs.full_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push payments
+        id: push-payments
+        uses: docker/build-push-action@v6
+        with:
+          context: Lecture17
+          file: Lecture17/apps/payments-service/Dockerfile
+          target: prod
+          push: true
+          tags: |
+            ${{ steps.prefix.outputs.value }}/payments:${{ steps.tag.outputs.tag }}
+            ${{ steps.prefix.outputs.value }}/payments:${{ steps.tag.outputs.full_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Write release-manifest.json
+        id: manifest
+        run: |
+          ORDERS_IMG="${{ steps.prefix.outputs.value }}/orders-api:${{ steps.tag.outputs.tag }}"
+          PAYMENTS_IMG="${{ steps.prefix.outputs.value }}/payments:${{ steps.tag.outputs.tag }}"
+          ORDERS_DIGEST="${{ steps.push-orders.outputs.digest }}"
+          PAYMENTS_DIGEST="${{ steps.push-payments.outputs.digest }}"
+          printf '%s\n' '{' \
+            '"commit": "'"${{ steps.tag.outputs.full_sha }}"'",' \
+            '"tag": "'"${{ steps.tag.outputs.tag }}"'",' \
+            '"services": {' \
+              '"orders-api": {"image": "'"${ORDERS_IMG}"'", "digest": "'"${ORDERS_DIGEST}"'"},' \
+              '"payments": {"image": "'"${PAYMENTS_IMG}"'", "digest": "'"${PAYMENTS_DIGEST}"'"},' \
+              '"worker": {"image": "'"${ORDERS_IMG}"'", "digest": "'"${ORDERS_DIGEST}"'"}' \
+            '}' \
+          '}' > release-manifest.json
+          cat release-manifest.json
+          echo "path=release-manifest.json" >> $GITHUB_OUTPUT
+
+      - name: Upload release-manifest.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest
+          path: release-manifest.json
+          retention-days: 90
+
+  deploy-production:
+    name: Deploy Production
+    runs-on: ubuntu-latest
+    needs: build-push
+    environment: production
+    steps:
+      - name: Download release-manifest (same artifact as used for deploy — no rebuild)
+        uses: actions/download-artifact@v4
+        with:
+          name: release-manifest
+
+      - name: Log deploy context (commit SHA, image tag/digest, target environment)
+        run: |
+          echo "=============================================="
+          echo "PRODUCTION DEPLOY"
+          echo "=============================================="
+          echo "target_environment: production"
+          echo "commit_sha: $(jq -r '.commit' release-manifest.json)"
+          echo "image_tag: $(jq -r '.tag' release-manifest.json)"
+          echo "----------------------------------------------"
+          echo "services:"
+          jq -r '.services | to_entries[] | "  \(.key):\n    image: \(.value.image)\n    digest: \(.value.digest)"' release-manifest.json
+          echo "=============================================="
+
+      - name: Production deploy (use images from manifest — no rebuild)
+        run: |
+          echo "Deploying to production using release-manifest.json (same artifact format as stage)."
+          echo "Pull images by tag/digest above and deploy to your cluster (kubectl, ECS, etc.)."

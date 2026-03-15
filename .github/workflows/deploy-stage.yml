@@ -1,0 +1,61 @@
+# Stage deploy: реальний деплой у stage environment (compose up + migrate + health + smoke test).
+# Використовує GitHub Environment "stage" для окремих env variables / secrets.
+# У Settings → Environments створіть "stage" і при потребі додайте змінні (наприклад STAGE_DB_PASSWORD, STAGE_JWT_SECRET).
+name: Deploy Stage
+
+on:
+  push:
+    branches: [develop]
+
+defaults:
+  run:
+    working-directory: Lecture17
+
+env:
+  STAGE_PROJECT_NAME: stage-${{ github.run_id }}
+  STAGE_ORDERS_PORT: "8080"
+
+jobs:
+  deploy-stage:
+    name: Deploy to Stage
+    runs-on: ubuntu-latest
+    environment: stage
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set stage image tag (short SHA)
+        run: echo "STAGE_IMAGE_TAG=stage-${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: Lecture17/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Build Docker images for stage
+        run: |
+          docker build -t lecture17-orders-api:${{ env.STAGE_IMAGE_TAG }} --target prod .
+          docker build -t lecture17-payments:${{ env.STAGE_IMAGE_TAG }} -f apps/payments-service/Dockerfile --target prod .
+
+      - name: Deploy to stage (compose up + migrate + health + smoke)
+        run: |
+          chmod +x scripts/deploy-stage.sh
+          bash scripts/deploy-stage.sh
+
+      - name: Show stage status
+        if: always()
+        run: |
+          docker compose -p ${{ env.STAGE_PROJECT_NAME }} -f docker-compose.stage.yml ps || true
+
+      - name: Teardown stage stack
+        if: always()
+        run: |
+          docker compose -p ${{ env.STAGE_PROJECT_NAME }} -f docker-compose.stage.yml down -v --remove-orphans || true

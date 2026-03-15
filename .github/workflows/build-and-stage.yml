@@ -1,0 +1,227 @@
+name: Build and Stage
+
+on:
+  push:
+    branches: [develop, main]
+    paths:
+      - 'Lecture17/**'
+      - '.github/workflows/build-and-stage.yml'
+
+env:
+  REGISTRY: ghcr.io
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-orders-api:
+    name: Build orders-api
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      full_sha: ${{ steps.meta.outputs.full_sha }}
+      prefix: ${{ steps.meta.outputs.prefix }}
+      digest: ${{ steps.push-orders.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set tag and prefix
+        id: meta
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            TAG="sha-${SHORT_SHA}"
+          else
+            TAG="stage-${SHORT_SHA}"
+          fi
+          PREFIG=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "full_sha=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          echo "prefix=ghcr.io/${PREFIG}" >> $GITHUB_OUTPUT
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push orders-api
+        id: push-orders
+        uses: docker/build-push-action@v6
+        with:
+          context: Lecture17
+          file: Lecture17/Dockerfile
+          target: prod
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.prefix }}/orders-api:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.prefix }}/orders-api:${{ steps.meta.outputs.full_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-payments:
+    name: Build payments
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      full_sha: ${{ steps.meta.outputs.full_sha }}
+      prefix: ${{ steps.meta.outputs.prefix }}
+      digest: ${{ steps.push-payments.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set tag and prefix
+        id: meta
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            TAG="sha-${SHORT_SHA}"
+          else
+            TAG="stage-${SHORT_SHA}"
+          fi
+          PREFIG=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "full_sha=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          echo "prefix=ghcr.io/${PREFIG}" >> $GITHUB_OUTPUT
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push payments
+        id: push-payments
+        uses: docker/build-push-action@v6
+        with:
+          context: Lecture17
+          file: Lecture17/apps/payments-service/Dockerfile
+          target: prod
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.prefix }}/payments:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.prefix }}/payments:${{ steps.meta.outputs.full_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  quality-gate:
+    name: Lint + unit tests (build → test → deploy path)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: Lecture17/package-lock.json
+      - run: npm ci
+        working-directory: Lecture17
+      - run: npm run lint
+        working-directory: Lecture17
+      - run: npm run test
+        working-directory: Lecture17
+
+  contract-tests:
+    name: Contract tests (orders ↔ payments)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build payments image and run contract test
+        working-directory: Lecture17
+        run: |
+          docker build -t payments-contract-test -f apps/payments-service/Dockerfile --target prod .
+          docker run -d --name payments-ct -p 5001:5001 -e GRPC_URL=0.0.0.0:5001 -e HTTP_PORT=3001 payments-contract-test
+          sleep 5
+          npm ci
+          node scripts/contract-test-payments.mjs
+        env:
+          PAYMENTS_GRPC_URL: localhost:5001
+
+      - name: Stop payments container
+        if: always()
+        run: docker rm -f payments-ct 2>/dev/null || true
+
+  release-manifest:
+    name: Coordinated release manifest
+    runs-on: ubuntu-latest
+    needs: [build-orders-api, build-payments]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create coordinated release manifest (orders-api, payments, worker)
+        run: |
+          TAG="${{ needs.build-orders-api.outputs.tag }}"
+          FULL_SHA="${{ needs.build-orders-api.outputs.full_sha }}"
+          PREFIX="${{ needs.build-orders-api.outputs.prefix }}"
+          ORDERS_IMG="${PREFIX}/orders-api:${TAG}"
+          PAYMENTS_IMG="${PREFIX}/payments:${TAG}"
+          ORDERS_DIGEST="${{ needs.build-orders-api.outputs.digest }}"
+          PAYMENTS_DIGEST="${{ needs.build-payments.outputs.digest }}"
+          # worker використовує той самий image що orders-api
+          printf '%s\n' '{' \
+            '"commit": "'"${FULL_SHA}"'",' \
+            '"tag": "'"${TAG}"'",' \
+            '"services": {' \
+              '"orders-api": {"image": "'"${ORDERS_IMG}"'", "digest": "'"${ORDERS_DIGEST}"'"},' \
+              '"payments": {"image": "'"${PAYMENTS_IMG}"'", "digest": "'"${PAYMENTS_DIGEST}"'"},' \
+              '"worker": {"image": "'"${ORDERS_IMG}"'", "digest": "'"${ORDERS_DIGEST}"'"}' \
+            '}' \
+            '}' > release-manifest.json
+          cat release-manifest.json
+
+      - name: Upload release-manifest (for main → deploy-prod)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest
+          path: release-manifest.json
+          retention-days: 90
+
+  deploy-stage:
+    name: Deploy to Stage
+    runs-on: ubuntu-latest
+    needs: [build-orders-api, build-payments, contract-tests, quality-gate]
+    if: github.ref == 'refs/heads/develop'
+    environment: stage
+    defaults:
+      run:
+        working-directory: Lecture17
+    env:
+      STAGE_PROJECT_NAME: stage-${{ github.run_id }}
+      STAGE_ORDERS_PORT: "8080"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set stage image tag (short SHA)
+        run: echo "STAGE_IMAGE_TAG=stage-${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: Lecture17/package-lock.json
+
+      - name: Install dependencies and build app
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build Docker images for stage (same as build jobs, for local compose)
+        run: |
+          docker build -t lecture17-orders-api:${{ env.STAGE_IMAGE_TAG }} --target prod .
+          docker build -t lecture17-payments:${{ env.STAGE_IMAGE_TAG }} -f apps/payments-service/Dockerfile --target prod .
+
+      - name: Deploy to stage
+        run: |
+          chmod +x scripts/deploy-stage.sh
+          bash scripts/deploy-stage.sh
+
+      - name: Teardown stage
+        if: always()
+        run: |
+          docker compose -p ${{ env.STAGE_PROJECT_NAME }} -f docker-compose.stage.yml down -v --remove-orphans || true
