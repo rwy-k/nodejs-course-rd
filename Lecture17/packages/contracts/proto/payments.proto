@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package payments;
+
+option java_multiple_files = true;
+
+service Payments {
+  rpc Authorize (AuthorizeInput) returns (AuthorizeResult);
+  rpc GetPaymentStatus (GetPaymentStatusInput) returns (GetPaymentStatusResult);
+  rpc Capture (CaptureInput) returns (CaptureResult);   
+  rpc Refund (RefundInput) returns (RefundResult);     
+}
+
+message AuthorizeInput {
+  string order_id = 1;
+  string amount = 2;           
+  string currency = 3;
+  optional string idempotency_key = 4;
+}
+
+message AuthorizeResult {
+  string payment_id = 1;
+  string status = 2;          // e.g. AUTHORIZED, PENDING, FAILED
+  optional string error_message = 3;
+}
+
+message GetPaymentStatusInput {
+  string payment_id = 1;
+}
+
+message GetPaymentStatusResult {
+  string payment_id = 1;
+  string status = 2;
+  optional string error_message = 3;
+}
+
+message CaptureInput {
+  string payment_id = 1;
+  string amount = 2;
+  optional string idempotency_key = 3;
+}
+
+message CaptureResult {
+  bool success = 1;
+  string status = 2;
+  optional string error_message = 3;
+}
+
+message RefundInput {
+  string payment_id = 1;
+  string amount = 2;
+  optional string idempotency_key = 3;
+}
+
+message RefundResult {
+  bool success = 1;
+  string status = 2;
+  optional string error_message = 3;
+}

@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-api
+  labels:
+    app: orders-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orders-api
+  template:
+    metadata:
+      labels:
+        app: orders-api
+    spec:
+      containers:
+        # Production: замініть тег на image:tag з release-manifest.json (immutable), не використовуйте :latest
+        - name: orders-api
+          image: lecture17-orders-api:sha-PLACEHOLDER
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: app-config
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: db-password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments
+  labels:
+    app: payments
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payments
+  template:
+    metadata:
+      labels:
+        app: payments
+    spec:
+      containers:
+        # Production: тег з release-manifest.json
+        - name: payments
+          image: lecture17-payments:sha-PLACEHOLDER
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5001
+            - containerPort: 3001
+          envFrom:
+            - configMapRef:
+                name: app-config
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels:
+    app: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        # Worker = той самий image що orders-api, тег з release-manifest
+        - name: worker
+          image: lecture17-orders-api:sha-PLACEHOLDER
+          imagePullPolicy: IfNotPresent
+          command: ["node", "dist/main.worker"]
+          envFrom:
+            - configMapRef:
+                name: app-config
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: db-password
