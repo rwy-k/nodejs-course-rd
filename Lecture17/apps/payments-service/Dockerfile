@@ -14,11 +14,11 @@ RUN npm run build && npm prune --production
 
 FROM node:20-alpine AS prod
 WORKDIR /app
-RUN addgroup -g 1001 -S nodejs && adduser -S node -u 1001
+RUN mkdir -p /app && chown -R node:node /app
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/package.json ./
-COPY --from=build /packages/contracts /packages/contracts
+COPY --from=build --chown=node:node /packages/contracts /packages/contracts
 USER node
 EXPOSE 5001 3001
 CMD ["node", "dist/main"]
