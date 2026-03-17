@@ -102,3 +102,69 @@ packages/contracts/proto/payments.proto
 Обидва сервіси використовують один і той самий файл з репо; окремого копіювання в кожен сервіс немає.
 
 ---
+
+## CI/CD (GitHub Actions)
+
+У репозиторії налаштований повний CI/CD pipeline для Lecture17 через GitHub Actions.
+
+### 1. PR checks
+
+- Workflow: `.github/workflows/pr-checks.yml`
+- Тригер: `pull_request` у `develop` і `main`
+- Jobs:
+  - **Lint** → `npm run lint`
+  - **Unit tests** → `npm run test`
+  - **Docker build validation** → збірка Docker-образів `orders-api` і `payments` (перевірка Dockerfile)
+  - **Migration / schema check** → `npm run build` + `npm run migration:run:prod` проти тимчасового Postgres
+- Рекомендація: у **Settings → Branches** для `develop` і `main` додати required checks з цих jobs, щоб merge PR був можливий лише коли всі зелені.
+
+### 2. Build + Stage deploy
+
+- Workflow: `.github/workflows/build-and-stage.yml`
+- Тригер: `push` у `develop` і `main`
+- Jobs:
+  - **Build orders-api / payments** → збірка та пуш Docker-образів у GHCR з immutable тегом:
+    - `sha-<SHORT_SHA>` (short commit)
+    - `<FULL_SHA>` (повний commit)
+  - **Quality gate** → `npm ci`, `npm run lint`, `npm run test`
+  - **Contract tests** → збірка образу payments, запуск контейнера, gRPC contract test (`scripts/contract-test-payments.mjs`)
+  - **Coordinated release manifest** → створює `release-manifest.json` з `commit`, `tag`, образами `orders-api`, `payments`, `worker` (з digest) і вантажить як artifact
+  - **Deploy to Stage** (тільки для `develop`) → запускає `Lecture17/scripts/deploy-stage.sh`, який:
+    - будує локальні образи для stage
+    - піднімає stack через `docker-compose.stage.yml` (Postgres, RabbitMQ, migrate, orders, payments, worker)
+    - чекає health + виконує smoke-тести
+    - після перевірки гасить stack
+
+### 3. Production build + deploy
+
+- Build + push:
+  - Workflow: `.github/workflows/build-push-images.yml`
+  - Тригер: `push` у `main` або `workflow_dispatch`
+  - Збирає та пушить образи `orders-api` і `payments` у GHCR з immutable тегами (як вище)
+  - Створює `release-manifest.json` з образами (включно з `worker`) і завантажує як artifact `release-manifest`
+- Production deploy (без rebuild):
+  - Workflow: `.github/workflows/deploy-prod.yml` (`workflow_run` після успішного `Build and Stage` на `main`)
+  - Читає artifact `release-manifest` і логрує, які саме образи/дизести деплояться
+  - Коментарі у workflow підказують, що далі потрібно використати ці теги/дизести у вашому реальному кластері (kubectl/ECS тощо)
+  - Manual approval реалізується через GitHub **Environment `production`** з Required reviewers (у Settings → Environments)
+
+### 4. Ручний stage / prod deploy
+
+- Stage:
+  - Workflow: `.github/workflows/deploy-stage.yml`
+  - Тригер: `push` у `develop`
+  - Самостійно виконує build образів і викликає `scripts/deploy-stage.sh` (аналогічно job-у `Deploy to Stage` з `build-and-stage.yml`)
+- Production (standalone):
+  - Workflow: `.github/workflows/deploy-production.yml`
+  - Тригер: `workflow_dispatch`
+  - Використовується як ручний вхід у production deploy: показує, що канонічний шлях — через `build-push-images.yml` + `release-manifest`
+
+### 5. End-to-end flow (приклад)
+
+1. Розробка → створити гілку від `develop`, зробити зміни в Lecture17, відкрити PR у `develop`.
+2. На PR проходить `PR Checks` (Lint, Unit tests, Docker build validation, Migration / schema check).
+3. Після green checks PR merge у `develop`:
+   - `build-and-stage.yml` будує образи, запускає quality gate + contract tests і автоматично деплоїть на **stage**.
+4. Після перевірки на stage (e2e або мануально) merge/реліз у `main`:
+   - `build-and-stage.yml` + `build-push-images.yml` створюють/оновлюють `release-manifest` з immutable тегами.
+   - `deploy-prod.yml` (або `deploy-production.yml` за потреби) використовує цей manifest для **production deploy** з manual approval через Environment `production`.
