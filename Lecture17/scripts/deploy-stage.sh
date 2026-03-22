@@ -20,7 +20,20 @@ fi
 echo "==> Stage deploy: project=$PROJECT_NAME image_tag=$STAGE_IMAGE_TAG port=$ORDERS_PORT"
 
 echo "==> Starting stack..."
+
+set +e
 docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" up -d
+up_exit=$?
+set -e
+
+if [ $up_exit -ne 0 ]; then
+  echo "==> ERROR: docker compose up failed with exit code $up_exit"
+  echo "==> docker compose ps:"
+  docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" ps || true
+  echo "==> docker compose logs for migrate service (if any):"
+  docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" logs migrate --tail 100 || true
+  exit $up_exit
+fi
 
 echo "==> Waiting for orders-api health (max ${MAX_WAIT}s)..."
 elapsed=0

@@ -21,7 +21,7 @@
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/config/typeorm.config.ts",
     "migration:run:prod": "typeorm migration:run -d dist/config/typeorm.config.js",
     "migration:revert:prod": "typeorm migration:revert -d dist/config/typeorm.config.js",
-    "seed:prod": "node dist/src/seeds/run-seed.js"
+    "seed:prod": "node dist/seeds/run-seed.js"
   },
   "dependencies": {
     "@apollo/server": "^4.11.0",

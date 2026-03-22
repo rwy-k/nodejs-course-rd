@@ -55,6 +55,8 @@ COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/package.json ./
 
+COPY --chown=node:node packages/contracts ./packages/contracts
+
 USER node
 
 EXPOSE 3000
@@ -70,6 +72,7 @@ WORKDIR /app
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
+COPY packages/contracts ./packages/contracts
 
 USER nonroot
 
