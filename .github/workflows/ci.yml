@@ -6,7 +6,7 @@ on:
 
 defaults:
   run:
-    working-directory: Lecture19
+    working-directory: Lecture21
 
 jobs:
   ci:
@@ -19,7 +19,7 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: Lecture19/package-lock.json
+          cache-dependency-path: Lecture21/package-lock.json
 
       - name: Install dependencies
         run: npm ci

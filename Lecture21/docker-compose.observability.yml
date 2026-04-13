@@ -1,0 +1,32 @@
+# Prometheus + Grafana for local metrics (Lecture21).
+# Run Orders API on the host: npm run start:dev (port 3000), then:
+#   docker compose -f docker-compose.observability.yml up -d
+# Grafana: http://localhost:3002 (anonymous admin for local dev only)
+# Prometheus: http://localhost:9090
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    ports:
+      - '9090:9090'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=6h'
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    ports:
+      - '3002:3000'
+    depends_on:
+      - prometheus
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_USERS_DEFAULT_THEME: dark
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro

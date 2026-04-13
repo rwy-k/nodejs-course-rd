@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package payment;
+
+option java_multiple_files = true;
+
+service PaymentService {
+  rpc RequestPayment (RequestPaymentInput) returns (RequestPaymentResult);
+}
+
+message RequestPaymentInput {
+  string order_id = 1;
+  string amount_cents = 2;
+  string currency = 3;
+  optional string idempotency_key = 4;
+}
+
+message RequestPaymentResult {
+  string payment_id = 1;
+  string status = 2;  // e.g. PENDING, COMPLETED, FAILED
+  optional string error_message = 3;
+}

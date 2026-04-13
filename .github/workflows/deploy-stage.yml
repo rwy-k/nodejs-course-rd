@@ -6,7 +6,7 @@ on:
 
 defaults:
   run:
-    working-directory: Lecture19
+    working-directory: Lecture21
 
 env:
   STAGE_PROJECT_NAME: stage-${{ github.run_id }}
@@ -30,7 +30,7 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: Lecture19/package-lock.json
+          cache-dependency-path: Lecture21/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -40,8 +40,8 @@ jobs:
 
       - name: Build Docker images for stage
         run: |
-          docker build -t lecture19-orders-api:${{ env.STAGE_IMAGE_TAG }} --target prod .
-          docker build -t lecture19-payments:${{ env.STAGE_IMAGE_TAG }} -f apps/payments-service/Dockerfile --target prod .
+          docker build -t lecture21-orders-api:${{ env.STAGE_IMAGE_TAG }} --target prod .
+          docker build -t lecture21-payments:${{ env.STAGE_IMAGE_TAG }} -f apps/payments-service/Dockerfile --target prod .
 
       - name: Deploy to stage (compose up + migrate + health + smoke)
         run: |
