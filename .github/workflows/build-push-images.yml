@@ -28,14 +28,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check Lecture17 exists
+      - name: Check Lecture19 exists
         id: check
         run: |
-          if [ -f "Lecture17/package.json" ]; then
+          if [ -f "Lecture19/package.json" ]; then
             echo "present=true" >> $GITHUB_OUTPUT
           else
             echo "present=false" >> $GITHUB_OUTPUT
-            echo "Lecture17 not found; skipping docker build/push."
+            echo "Lecture19 not found; skipping docker build/push."
           fi
 
       - name: Set image tag (immutable)
@@ -70,8 +70,8 @@ jobs:
         if: steps.check.outputs.present == 'true'
         uses: docker/build-push-action@v6
         with:
-          context: Lecture17
-          file: Lecture17/Dockerfile
+          context: Lecture19
+          file: Lecture19/Dockerfile
           target: prod
           push: true
           tags: |
@@ -85,8 +85,8 @@ jobs:
         if: steps.check.outputs.present == 'true'
         uses: docker/build-push-action@v6
         with:
-          context: Lecture17
-          file: Lecture17/apps/payments-service/Dockerfile
+          context: Lecture19
+          file: Lecture19/apps/payments-service/Dockerfile
           target: prod
           push: true
           tags: |

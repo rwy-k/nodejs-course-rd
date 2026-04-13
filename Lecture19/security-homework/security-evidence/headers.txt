@@ -1,0 +1,19 @@
+# Заголовки з Helmet (приклад)
+# Знято з мінімального Express + helmet@8 з node_modules цього репо — той самий major, що тягне Nest.
+# У dev у нас CSP вимкнений (contentSecurityPolicy: false), щоб не вбити Swagger і GraphQL Playground.
+
+HTTP/1.1 200 OK
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+origin-agent-cluster: ?1
+referrer-policy: no-referrer
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-dns-prefetch-control: off
+x-download-options: noopen
+x-frame-options: SAMEORIGIN
+x-permitted-cross-domain-policies: none
+x-xss-protection: 0
+
+# Живий orders-api (після підняття, у мене було 8080):
+curl -sI "http://localhost:8080/health" | grep -iE '^(x-|referrer|strict|cross-origin)'
