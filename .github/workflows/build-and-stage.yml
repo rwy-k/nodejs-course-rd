@@ -246,6 +246,7 @@ jobs:
     env:
       STAGE_PROJECT_NAME: stage-${{ github.run_id }}
       STAGE_ORDERS_PORT: "8080"
+      STAGE_JWT_SECRET: ${{ secrets.STAGE_JWT_SECRET }}
     steps:
       - uses: actions/checkout@v4
 

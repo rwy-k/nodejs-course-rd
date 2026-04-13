@@ -8,6 +8,7 @@ build/
 
 # Environment and secrets (never commit real values)
 .env
+.env.stage
 .env.*.local
 .env.local
 *.pem

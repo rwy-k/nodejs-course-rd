@@ -12,7 +12,16 @@ SLEEP=5
 
 cd "$LECTURE19_DIR"
 
-: "${STAGE_JWT_SECRET:?Export STAGE_JWT_SECRET (e.g. from CI Environment secrets) — docker-compose.stage.yml has no default JWT}"
+STAGE_ENV_FILE="${LECTURE19_DIR}/.env.stage"
+if [ -f "$STAGE_ENV_FILE" ]; then
+  echo "==> Loading ${STAGE_ENV_FILE}"
+  set -a
+  # shellcheck disable=SC1090
+  source "$STAGE_ENV_FILE"
+  set +a
+fi
+
+: "${STAGE_JWT_SECRET:?Set STAGE_JWT_SECRET (export, CI secret, or copy .env.stage.example to .env.stage — no default in docker-compose.stage.yml)}"
 
 export STAGE_IMAGE_TAG="${STAGE_IMAGE_TAG:-latest}"
 if [ "${STAGE_IMAGE_TAG}" = "latest" ]; then
