@@ -29,7 +29,7 @@ services:
       retries: 5
 
   migrate:
-    image: lecture19-orders-api:${STAGE_IMAGE_TAG:-latest}
+    image: lecture21-orders-api:${STAGE_IMAGE_TAG:-latest}
     container_name: stage_migrate
     environment:
       NODE_ENV: production
@@ -47,7 +47,7 @@ services:
     restart: "no"
 
   orders-api:
-    image: lecture19-orders-api:${STAGE_IMAGE_TAG:-latest}
+    image: lecture21-orders-api:${STAGE_IMAGE_TAG:-latest}
     container_name: stage_orders_api
     environment:
       NODE_ENV: production
@@ -84,7 +84,7 @@ services:
       retries: 5
 
   payments:
-    image: lecture19-payments:${STAGE_IMAGE_TAG:-latest}
+    image: lecture21-payments:${STAGE_IMAGE_TAG:-latest}
     container_name: stage_payments
     environment:
       NODE_ENV: production
@@ -98,7 +98,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: lecture19-orders-api:${STAGE_IMAGE_TAG:-latest}
+    image: lecture21-orders-api:${STAGE_IMAGE_TAG:-latest}
     container_name: stage_worker
     command: ["node", "dist/main.worker"]
     environment:
