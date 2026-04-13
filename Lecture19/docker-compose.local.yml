@@ -1,0 +1,185 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lecture19_db_local
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${DB_NAME:-shop}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata_local:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-shop}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: lecture19_rabbitmq_local
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    build:
+      context: .
+      target: migrations
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-shop}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+    networks:
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["npm", "run", "migration:run:prod"]
+    profiles:
+      - tools
+
+  seed:
+    build:
+      context: .
+      target: migrations
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-shop}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+    networks:
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command: ["npm", "run", "seed:prod"]
+    profiles:
+      - tools
+
+  orders-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prod
+    image: lecture19-orders-api:latest
+    container_name: lecture19_orders_api_local
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-shop}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      PAYMENTS_GRPC_URL: payments:5001
+    ports:
+      - "${ORDERS_API_HOST_PORT:-8080}:3000"
+    networks:
+      - internal
+      - public
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      payments:
+        condition: service_started
+    restart: unless-stopped
+
+  payments:
+    build:
+      context: .
+      dockerfile: apps/payments-service/Dockerfile
+      target: prod
+    image: lecture19-payments:latest
+    container_name: lecture19_payments_local
+    environment:
+      NODE_ENV: production
+      GRPC_URL: "0.0.0.0:5001"
+      HTTP_PORT: "3001"
+    networks:
+      - internal
+    expose:
+      - "5001"
+      - "3001"
+    restart: unless-stopped
+
+  reverse-proxy:
+    image: nginx:1.27-alpine
+    container_name: lecture19_gateway_local
+    volumes:
+      - ./docker/nginx/local-gateway.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${GATEWAY_PORT:-9080}:80"
+    depends_on:
+      - orders-api
+    networks:
+      - internal
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prod
+    image: lecture19-orders-api:latest
+    container_name: lecture19_worker_local
+    command: ["node", "dist/main.worker"]
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-shop}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+    networks:
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  internal:
+    driver: bridge
+  public:
+    driver: bridge
+
+volumes:
+  pgdata_local:
+    driver: local

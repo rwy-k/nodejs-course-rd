@@ -1,0 +1,8 @@
+# Приклади audit: один JSON на рядок, логер Nest "Audit".
+# Паролі, JWT і секрети в payload не кладемо — тільки id / reason / outcome.
+
+{"type":"audit","action":"auth.login","actorId":null,"actorRole":null,"targetType":"User","targetId":null,"outcome":"denied","timestamp":"2026-04-11T20:45:00.000Z","correlationId":null,"requestId":"550e8400-e29b-41d4-a716-446655440000","reason":"user_not_found","ip":"127.0.0.1","userAgentTruncated":"curl/8.7.1"}
+
+{"type":"audit","action":"payment.refund","actorId":1,"actorRole":"admin","targetType":"Payment","targetId":"pay_1733942400_abc12","outcome":"success","timestamp":"2026-04-11T20:46:00.000Z","correlationId":"req-from-client","requestId":"660e8400-e29b-41d4-a716-446655440001","reason":"status:REFUNDED","ip":"127.0.0.1","userAgentTruncated":null}
+
+{"type":"audit","action":"user.role_change","actorId":1,"actorRole":"admin","targetType":"User","targetId":2,"outcome":"success","timestamp":"2026-04-11T20:47:00.000Z","correlationId":null,"requestId":"770e8400-e29b-41d4-a716-446655440002","reason":"from:user;to:admin","ip":"127.0.0.1","userAgentTruncated":null}

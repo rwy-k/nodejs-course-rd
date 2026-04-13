@@ -1,0 +1,22 @@
+# Rate limit на логіні — як побачити 429
+#
+# Налаштування: THROTTLE_AUTH_STRICT на POST /auth/login — 10 запитів за 60 с на IP.
+# Деталі в src/config/throttle.config.ts, guard у AppThrottlerGuard, trust proxy у main.ts.
+
+# Швидкий bash-стрес, BASE — твій URL до orders-api:
+
+BASE=http://localhost:8080
+for i in $(seq 1 12); do
+  code=$(curl -s -o /tmp/rl_body.txt -w "%{http_code}" -X POST "$BASE/auth/login" \
+    -H "Content-Type: application/json" \
+    -d '{"email":"nobody@example.invalid","password":"wrong"}')
+  echo "attempt $i -> HTTP $code"
+done
+
+# Що очікувати:
+#   - спочатку в основному 401 (логін невалідний — це ок);
+#   - коли вичерпаєш вікно — почнуть сипатись 429;
+#   - у тілі щось на кшталт: ThrottlerException: Too Many Requests
+#
+# Якщо перед API стоїть nginx: не забудь X-Forwarded-For (у нас уже є в docker/nginx/local-gateway.conf),
+# інакше всі клієнти виглядають як один IP контейнера gateway — і ліміт «не той».
