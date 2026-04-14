@@ -6,7 +6,7 @@ on:
 
 defaults:
   run:
-    working-directory: Lecture19
+    working-directory: Lecture21
 
 env:
   NODE_ENV: test
@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: Lecture19/package-lock.json
+          cache-dependency-path: Lecture21/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -42,7 +42,7 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: Lecture19/package-lock.json
+          cache-dependency-path: Lecture21/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -61,7 +61,7 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: Lecture19/package-lock.json
+          cache-dependency-path: Lecture21/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -70,10 +70,10 @@ jobs:
         run: npm run build
 
       - name: Build orders-api image
-        run: docker build -t lecture19-orders-api:pr --target prod .
+        run: docker build -t lecture21-orders-api:pr --target prod .
 
       - name: Build payments image
-        run: docker build -t lecture19-payments:pr -f apps/payments-service/Dockerfile --target prod .
+        run: docker build -t lecture21-payments:pr -f apps/payments-service/Dockerfile --target prod .
 
   migration-check:
     name: Migration / schema check
@@ -100,7 +100,7 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: Lecture19/package-lock.json
+          cache-dependency-path: Lecture21/package-lock.json
 
       - name: Install dependencies
         run: npm ci
